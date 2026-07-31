@@ -14,6 +14,7 @@
   <meta name="twitter:description" content="Senior Mechanical Design Engineer with 7+ years of experience. SOLIDWORKS Certified Professional (CSWP). 169 five-star Fiverr reviews." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
   <style>
     /* ===== RESET & BASE ===== */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -2063,6 +2064,69 @@
       .stat-number { font-size: 1.6rem; }
     }
 
+    /* ===== 3D MODEL SHOWCASE ===== */
+    .model3d-section {
+      padding: 5rem 0;
+      background: var(--bg2);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .model3d-inner {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+    .model3d-header { text-align: center; margin-bottom: 2.5rem; }
+    .model3d-stage {
+      position: relative;
+      border-radius: var(--r3);
+      border: 1px solid var(--border2);
+      background:
+        radial-gradient(circle at 30% 20%, var(--teal-dim2), transparent 60%),
+        var(--surface);
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      height: 520px;
+    }
+    .model3d-stage model-viewer {
+      width: 100%;
+      height: 100%;
+      --poster-color: transparent;
+      --progress-bar-color: var(--teal);
+    }
+    .model3d-badge {
+      position: absolute;
+      top: 1rem;
+      left: 1rem;
+      z-index: 5;
+      background: var(--accent-dim2);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--border2);
+      color: var(--text2);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      letter-spacing: 0.03em;
+      padding: 0.4rem 0.75rem;
+      border-radius: 999px;
+    }
+    .model3d-hint {
+      position: absolute;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 5;
+      color: var(--text2);
+      font-size: 0.8rem;
+      background: var(--accent-dim2);
+      backdrop-filter: blur(6px);
+      border: 1px solid var(--border2);
+      padding: 0.4rem 0.9rem;
+      border-radius: 999px;
+      pointer-events: none;
+    }
+    @media (max-width: 700px) {
+      .model3d-stage { height: 380px; }
+    }
   </style>
 </head>
 <body>
@@ -2205,6 +2269,36 @@
 
     </div>
   </section>
+
+  <!-- 3D MODEL SHOWCASE -->
+  <div class="model3d-section">
+    <div class="model3d-inner">
+      <div class="model3d-header">
+        <div class="section-label">Interactive preview</div>
+        <h2 class="section-title" style="margin-bottom:0.75rem;">Explore a model in 3D</h2>
+        <p class="hero-value-prop" style="max-width:640px;margin:0 auto;">
+          Drag to rotate, scroll to zoom — a live look at the kind of production-ready CAD work I deliver.
+        </p>
+      </div>
+      <div class="model3d-stage">
+        <div class="model3d-badge">3D · Live Model</div>
+        <model-viewer
+          src="3D_TEST_MODEL_FOR_WEB.glb"
+          alt="Interactive 3D CAD model preview"
+          camera-controls
+          auto-rotate
+          auto-rotate-delay="1200"
+          rotation-per-second="18deg"
+          touch-action="pan-y"
+          shadow-intensity="1"
+          exposure="1"
+          environment-image="neutral"
+          loading="lazy"
+        ></model-viewer>
+        <div class="model3d-hint">🖱 Drag to rotate · Scroll to zoom</div>
+      </div>
+    </div>
+  </div>
 
   <!-- WHY CHOOSE ME -->
   <div class="why-section">
