@@ -5,15 +5,27 @@
 <title>3D Bicycle Model — Interactive Exploded Viewer</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#f7f7f7;color:#eee;font-family:Segoe UI,Arial,sans-serif}
-#viewer{position:fixed;inset:0}#panel{position:fixed;right:18px;top:18px;width:300px;padding:17px;background:#15191fe8;border:1px solid #343a42;border-radius:12px}
-h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#9ba3ad;margin-bottom:18px}
-label{display:flex;justify-content:space-between;font-size:12px;margin:13px 0 7px}
-input[type=range]{width:100%}button{width:100%;padding:9px;margin-top:8px;border:1px solid #3b424b;border-radius:7px;background:#20262e;color:#fff;cursor:pointer}
-button:hover{background:#2a323b}.row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.row button{margin:0}
-#parts{max-height:140px;overflow:auto;margin-top:7px;border:1px solid #30363e;border-radius:7px}
-.part{font-size:11px;padding:7px 9px;border-bottom:1px solid #252b32;cursor:pointer}.part:hover{background:#282f38}.part.active{background:#26313c;outline:1px solid #7d8b99}
-#status{font-size:11px;color:#a3abb5;line-height:1.45;margin-top:11px}
-#hint{position:fixed;left:14px;bottom:14px;background:#15191ddd;border:1px solid #343a42;border-radius:7px;padding:7px 9px;font-size:11px;color:#a3abb5}
+#viewer{position:fixed;inset:0}
+#toolbar{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:8px;
+  background:#15191fe8;border:1px solid #343a42;border-radius:12px;
+  padding:8px 10px;backdrop-filter:blur(6px);
+}
+#toolbar button{
+  display:flex;align-items:center;gap:6px;
+  padding:9px 14px;border:1px solid #3b424b;border-radius:8px;
+  background:#20262e;color:#fff;cursor:pointer;font-size:12.5px;white-space:nowrap;
+}
+#toolbar button:hover{background:#2a323b}
+#toolbar button.active{background:#2c6e63;border-color:#3d9484}
+#toolbar .divider{width:1px;height:26px;background:#343a42;margin:0 2px}
+#toolbar .slider-wrap{display:flex;align-items:center;gap:8px;padding:0 6px}
+#toolbar input[type=range]{width:110px}
+#toolbar #pct{font-size:11px;color:#a3abb5;font-family:monospace;min-width:32px;text-align:right}
+#hint{position:fixed;left:14px;top:14px;background:#15191ddd;border:1px solid #343a42;border-radius:7px;padding:7px 9px;font-size:11px;color:#a3abb5}
+#status{position:fixed;right:14px;top:14px;max-width:260px;background:#15191ddd;border:1px solid #343a42;border-radius:7px;padding:8px 10px;font-size:11px;color:#a3abb5;line-height:1.45;display:none}
+#status.show{display:block}
 #viewer.selecting{cursor:crosshair}
 </style>
 <script type="importmap">
@@ -22,17 +34,19 @@ button:hover{background:#2a323b}.row{display:grid;grid-template-columns:1fr 1fr;
 </head>
 <body>
 <div id="viewer"></div>
-<div id="hint">Click a part in the list OR click a component directly on the 3D model</div>
-<div id="panel">
-<h1>3D Bicycle Model</h1>
-<div class="sub">Select a component from the list or 3D model</div>
-<label>Explode <span id="pct">0%</span></label>
-<input id="slider" type="range" min="0" max="100" value="0">
-<div class="row"><button id="play">▶ Explode</button><button id="reset">↺ Reset All</button></div>
-<button id="edges">Toggle Edges</button>
-<label>Components <span id="count">—</span></label>
-<div id="parts"></div>
-<div id="status">Loading…</div>
+<div id="hint">Click a component on the 3D model to isolate it</div>
+<div id="status"></div>
+
+<div id="toolbar">
+  <div class="slider-wrap">
+    <span style="font-size:11px;color:#a3abb5;">Explode</span>
+    <input id="slider" type="range" min="0" max="100" value="0">
+    <span id="pct">0%</span>
+  </div>
+  <div class="divider"></div>
+  <button id="play">▶ Explode</button>
+  <button id="reset">↺ Reset</button>
+  <button id="edges">Toggle Edges</button>
 </div>
 
 <script type="module">
@@ -128,17 +142,6 @@ function build(){
    addEdges(m);
    if(m.userData.viewerEdge) m.userData.viewerEdge.visible = edges;
  });
-
- $("count").textContent=meshes.length;
- $("parts").innerHTML="";
- meshes.forEach((m,i)=>{
-   const d=document.createElement("div");
-   d.className="part";
-   d.dataset.index=i;
-   d.textContent=(i+1)+". "+(m.name||"Component");
-   d.onclick=()=>selectComponent(i,true);
-   $("parts").appendChild(d);
- });
 }
 
 function restoreAllMaterials(){
@@ -174,9 +177,7 @@ function setIsolation(index){
 }
 
 function updateList(index){
- document.querySelectorAll(".part").forEach((el,i)=>el.classList.toggle("active",i===index));
- const row=document.querySelector(`.part[data-index="${index}"]`);
- if(row)row.scrollIntoView({block:"nearest"});
+ // No component list in the UI anymore; kept as a no-op hook for future use.
 }
 
 function selectComponent(index,zoom=true){
@@ -186,15 +187,24 @@ function selectComponent(index,zoom=true){
  setIsolation(index);
  const m=meshes[index];
 
- $("status").innerHTML="<b>Selected:</b><br>"+(m.name||"Component")+"<br>Other components are transparent.";
+ showStatus("<b>Selected:</b> "+(m.name||"Component")+"<br>Other components are transparent.");
  if(zoom)frameObject(m,3.0);
+}
+
+function showStatus(html){
+ const el=$("status");
+ el.innerHTML=html;
+ el.classList.add("show");
+}
+
+function hideStatus(){
+ $("status").classList.remove("show");
 }
 
 function clearSelection(){
  selectedIndex=-1;
  restoreAllMaterials();
- document.querySelectorAll(".part").forEach(x=>x.classList.remove("active"));
- $("status").innerHTML="<b>Full assembly.</b><br>All components are visible.";
+ hideStatus();
 }
 
 function explode(v){
@@ -225,7 +235,10 @@ function pickFromModel(event){
 
  // Only test actual assembly meshes, not the generated edge lines.
  const hits=raycaster.intersectObjects(meshes,false);
- if(!hits.length)return;
+ if(!hits.length){
+   if(selectedIndex!==-1)clearSelection();
+   return;
+ }
 
  const hit=hits[0].object;
  const index=meshes.indexOf(hit);
@@ -272,11 +285,9 @@ function load(){
 
    frameWhole();
    explode(0);
-
-   $("status").innerHTML="<b>Loaded.</b><br>"+meshes.length+" mesh components.<br>Click a list item or a component in the 3D model.";
  },undefined,e=>{
    console.error(e);
-   $("status").innerHTML="<b>Load failed.</b><br>"+(e.message||e);
+   showStatus("<b>Load failed.</b><br>"+(e.message||e));
  });
 }
 
@@ -285,15 +296,21 @@ $("slider").oninput=e=>explode(+e.target.value);
 $("reset").onclick=()=>{
  // Explicitly restore EVERY component and remove selection.
  $("slider").value=0;
+ playing=false;
+ $("play").classList.remove("active");
  explode(0);
  clearSelection();
  frameWhole();
 };
 
-$("play").onclick=()=>playing=!playing;
+$("play").onclick=()=>{
+ playing=!playing;
+ $("play").classList.toggle("active",playing);
+};
 
 $("edges").onclick=()=>{
  edges=!edges;
+ $("edges").classList.toggle("active",edges);
  meshes.forEach(m=>{
    if(m.userData.viewerEdge)m.userData.viewerEdge.visible=edges;
  });
@@ -312,7 +329,7 @@ function loop(now){
 
  if(playing){
    let v=+$("slider").value+dt*30;
-   if(v>=100){v=100;playing=false}
+   if(v>=100){v=100;playing=false;$("play").classList.remove("active")}
    $("slider").value=v;
    explode(v);
  }
