@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>3D Bicycle Model — Interactive Exploded Viewer</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#d8d8d8;color:#eee;font-family:Segoe UI,Arial,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#f7f7f7;color:#eee;font-family:Segoe UI,Arial,sans-serif}
 #viewer{position:fixed;inset:0}#panel{position:fixed;right:18px;top:18px;width:300px;padding:17px;background:#15191fe8;border:1px solid #343a42;border-radius:12px}
 h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#9ba3ad;margin-bottom:18px}
 label{display:flex;justify-content:space-between;font-size:12px;margin:13px 0 7px}
@@ -43,7 +43,7 @@ import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 
 const $=x=>document.getElementById(x);
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0xd8d8d8);
+scene.background=new THREE.Color(0xf7f7f7);
 
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.001,10000);
 camera.position.set(3,2.4,4);
@@ -60,14 +60,15 @@ const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;
 controls.dampingFactor=.08;
 
-scene.add(new THREE.HemisphereLight(0xffffff,0x555555,1.6));
-let key=new THREE.DirectionalLight(0xffffff,1.8);key.position.set(4,6,8);scene.add(key);
-let fill=new THREE.DirectionalLight(0xffffff,.8);fill.position.set(-4,-2,5);scene.add(fill);
+scene.add(new THREE.HemisphereLight(0xffffff,0x888888,2.2));
+let key=new THREE.DirectionalLight(0xffffff,1.4);key.position.set(4,6,8);scene.add(key);
+let fill=new THREE.DirectionalLight(0xffffff,1.0);fill.position.set(-4,3,5);scene.add(fill);
+let rim=new THREE.DirectionalLight(0xffffff,.6);rim.position.set(0,4,-6);scene.add(rim);
 
 const raycaster=new THREE.Raycaster();
 const mouse=new THREE.Vector2();
 
-let root,meshes=[],originals=[],modelSize=1,playing=false,edges=true;
+let root,meshes=[],originals=[],modelSize=1,playing=false,edges=false;
 let selectedIndex=-1;
 const originalMaterials=new Map();
 
@@ -125,6 +126,7 @@ function build(){
  meshes.forEach((m,i)=>{
    originalMaterials.set(m,m.material);
    addEdges(m);
+   if(m.userData.viewerEdge) m.userData.viewerEdge.visible = edges;
  });
 
  $("count").textContent=meshes.length;
@@ -232,6 +234,28 @@ function pickFromModel(event){
 
 renderer.domElement.addEventListener("click",pickFromModel);
 
+function addContactShadow(box){
+ const size=Math.max(box.getSize(new THREE.Vector3()).x,box.getSize(new THREE.Vector3()).z)*1.8||1;
+ const canvas=document.createElement("canvas");
+ canvas.width=256;canvas.height=256;
+ const ctx=canvas.getContext("2d");
+ const grd=ctx.createRadialGradient(128,128,0,128,128,128);
+ grd.addColorStop(0,"rgba(0,0,0,0.32)");
+ grd.addColorStop(0.6,"rgba(0,0,0,0.12)");
+ grd.addColorStop(1,"rgba(0,0,0,0)");
+ ctx.fillStyle=grd;
+ ctx.fillRect(0,0,256,256);
+ const tex=new THREE.CanvasTexture(canvas);
+ const mat=new THREE.MeshBasicMaterial({map:tex,transparent:true,depthWrite:false});
+ const geo=new THREE.PlaneGeometry(size,size);
+ const shadow=new THREE.Mesh(geo,mat);
+ shadow.rotation.x=-Math.PI/2;
+ const center=box.getCenter(new THREE.Vector3());
+ shadow.position.set(center.x,box.min.y+0.001,center.z);
+ shadow.renderOrder=-1;
+ scene.add(shadow);
+}
+
 function load(){
  const dracoLoader=new DRACOLoader();
  dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
@@ -244,6 +268,7 @@ function load(){
 
    const b=getBox(root),s=b.getSize(new THREE.Vector3());
    modelSize=Math.max(...s.toArray())||1;
+   addContactShadow(b);
 
    frameWhole();
    explode(0);
