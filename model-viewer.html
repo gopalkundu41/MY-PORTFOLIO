@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>3D Bicycle Model — Interactive Exploded Viewer</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#808080;color:#eee;font-family:Segoe UI,Arial,sans-serif}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#d8d8d8;color:#eee;font-family:Segoe UI,Arial,sans-serif}
 #viewer{position:fixed;inset:0}#panel{position:fixed;right:18px;top:18px;width:300px;padding:17px;background:#15191fe8;border:1px solid #343a42;border-radius:12px}
 h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#9ba3ad;margin-bottom:18px}
 label{display:flex;justify-content:space-between;font-size:12px;margin:13px 0 7px}
@@ -43,7 +43,7 @@ import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
 
 const $=x=>document.getElementById(x);
 const scene=new THREE.Scene();
-scene.background=new THREE.Color(0x808080);
+scene.background=new THREE.Color(0xd8d8d8);
 
 const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.001,10000);
 camera.position.set(3,2.4,4);
