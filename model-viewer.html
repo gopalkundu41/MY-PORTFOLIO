@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>3D Bicycle Model — Interactive Exploded Viewer</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#808080;color:#eee;font-family:Segoe UI,Arial,sans-serif}
+#viewer{position:fixed;inset:0}#panel{position:fixed;right:18px;top:18px;width:300px;padding:17px;background:#15191fe8;border:1px solid #343a42;border-radius:12px}
+h1{font-size:18px;margin:0 0 4px}.sub{font-size:12px;color:#9ba3ad;margin-bottom:18px}
+label{display:flex;justify-content:space-between;font-size:12px;margin:13px 0 7px}
+input[type=range]{width:100%}button{width:100%;padding:9px;margin-top:8px;border:1px solid #3b424b;border-radius:7px;background:#20262e;color:#fff;cursor:pointer}
+button:hover{background:#2a323b}.row{display:grid;grid-template-columns:1fr 1fr;gap:7px}.row button{margin:0}
+#parts{max-height:140px;overflow:auto;margin-top:7px;border:1px solid #30363e;border-radius:7px}
+.part{font-size:11px;padding:7px 9px;border-bottom:1px solid #252b32;cursor:pointer}.part:hover{background:#282f38}.part.active{background:#26313c;outline:1px solid #7d8b99}
+#status{font-size:11px;color:#a3abb5;line-height:1.45;margin-top:11px}
+#hint{position:fixed;left:14px;bottom:14px;background:#15191ddd;border:1px solid #343a42;border-radius:7px;padding:7px 9px;font-size:11px;color:#a3abb5}
+#viewer.selecting{cursor:crosshair}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="viewer"></div>
+<div id="hint">Click a part in the list OR click a component directly on the 3D model</div>
+<div id="panel">
+<h1>3D Bicycle Model</h1>
+<div class="sub">Select a component from the list or 3D model</div>
+<label>Explode <span id="pct">0%</span></label>
+<input id="slider" type="range" min="0" max="100" value="0">
+<div class="row"><button id="play">▶ Explode</button><button id="reset">↺ Reset All</button></div>
+<button id="edges">Toggle Edges</button>
+<label>Components <span id="count">—</span></label>
+<div id="parts"></div>
+<div id="status">Loading…</div>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
+
+const $=x=>document.getElementById(x);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x808080);
+
+const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,.001,10000);
+camera.position.set(3,2.4,4);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.NoToneMapping;
+renderer.toneMappingExposure=1;
+$("viewer").appendChild(renderer.domElement);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;
+controls.dampingFactor=.08;
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x555555,1.6));
+let key=new THREE.DirectionalLight(0xffffff,1.8);key.position.set(4,6,8);scene.add(key);
+let fill=new THREE.DirectionalLight(0xffffff,.8);fill.position.set(-4,-2,5);scene.add(fill);
+
+const raycaster=new THREE.Raycaster();
+const mouse=new THREE.Vector2();
+
+let root,meshes=[],originals=[],modelSize=1,playing=false,edges=true;
+let selectedIndex=-1;
+const originalMaterials=new Map();
+
+function getBox(obj){obj.updateWorldMatrix(true,true);return new THREE.Box3().setFromObject(obj)}
+
+function frameObject(obj,padding=3){
+ const box=getBox(obj);if(box.isEmpty())return;
+ const center=box.getCenter(new THREE.Vector3());
+ const size=box.getSize(new THREE.Vector3());
+ const radius=Math.max(size.x,size.y,size.z)*.5||.01;
+ const distance=radius/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*padding;
+ let dir=camera.position.clone().sub(controls.target);
+ if(dir.lengthSq()<1e-8)dir.set(1,1,1);
+ dir.normalize();
+ controls.target.copy(center);
+ camera.position.copy(center).add(dir.multiplyScalar(distance));
+ camera.near=Math.max(radius/1000,.00001);
+ camera.far=Math.max(distance*20,100);
+ camera.updateProjectionMatrix();
+ controls.update();
+}
+
+function frameWhole(){
+ const box=getBox(root),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
+ const radius=Math.max(...size.toArray())*.5||1;
+ const distance=radius/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*1.8;
+ controls.target.copy(center);
+ camera.position.set(center.x+distance*.8,center.y+distance*.65,center.z+distance);
+ camera.near=Math.max(radius/100000,.00001);
+ camera.far=Math.max(distance*20,100);
+ camera.updateProjectionMatrix();
+ controls.update();
+}
+
+function addEdges(m){
+ const e=new THREE.EdgesGeometry(m.geometry,35);
+ const line=new THREE.LineSegments(e,new THREE.LineBasicMaterial({color:0x111111,transparent:true,opacity:.55,depthWrite:false}));
+ line.userData.viewerEdge=true;
+ m.add(line);
+ m.userData.viewerEdge=line;
+}
+
+function build(){
+ meshes=[];
+ root.traverse(o=>{if(o.isMesh)meshes.push(o)});
+ root.updateMatrixWorld(true);
+
+ originals=meshes.map(m=>({
+   position:m.position.clone(),
+   quaternion:m.quaternion.clone(),
+   scale:m.scale.clone(),
+   center:getBox(m).getCenter(new THREE.Vector3())
+ }));
+
+ meshes.forEach((m,i)=>{
+   originalMaterials.set(m,m.material);
+   addEdges(m);
+ });
+
+ $("count").textContent=meshes.length;
+ $("parts").innerHTML="";
+ meshes.forEach((m,i)=>{
+   const d=document.createElement("div");
+   d.className="part";
+   d.dataset.index=i;
+   d.textContent=(i+1)+". "+(m.name||"Component");
+   d.onclick=()=>selectComponent(i,true);
+   $("parts").appendChild(d);
+ });
+}
+
+function restoreAllMaterials(){
+ meshes.forEach(m=>{
+   const original=originalMaterials.get(m);
+   if(original)m.material=original;
+ });
+}
+
+function setIsolation(index){
+ meshes.forEach((m,i)=>{
+   const original=originalMaterials.get(m);
+   if(!original)return;
+
+   if(i===index){
+     const highlight=original.clone();
+     highlight.transparent=false;
+     highlight.opacity=1;
+     highlight.depthWrite=true;
+     if("emissive" in highlight){
+       highlight.emissive=new THREE.Color(0x234e78);
+       highlight.emissiveIntensity=.65;
+     }
+     m.material=highlight;
+   }else{
+     const ghost=original.clone();
+     ghost.transparent=true;
+     ghost.opacity=.08;
+     ghost.depthWrite=false;
+     m.material=ghost;
+   }
+ });
+}
+
+function updateList(index){
+ document.querySelectorAll(".part").forEach((el,i)=>el.classList.toggle("active",i===index));
+ const row=document.querySelector(`.part[data-index="${index}"]`);
+ if(row)row.scrollIntoView({block:"nearest"});
+}
+
+function selectComponent(index,zoom=true){
+ if(index<0||index>=meshes.length)return;
+ selectedIndex=index;
+ updateList(index);
+ setIsolation(index);
+ const m=meshes[index];
+
+ $("status").innerHTML="<b>Selected:</b><br>"+(m.name||"Component")+"<br>Other components are transparent.";
+ if(zoom)frameObject(m,3.0);
+}
+
+function clearSelection(){
+ selectedIndex=-1;
+ restoreAllMaterials();
+ document.querySelectorAll(".part").forEach(x=>x.classList.remove("active"));
+ $("status").innerHTML="<b>Full assembly.</b><br>All components are visible.";
+}
+
+function explode(v){
+ $("pct").textContent=Math.round(v)+"%";
+ if(!meshes.length)return;
+ const t=v/100;
+ const box=new THREE.Box3();
+ originals.forEach(o=>box.expandByPoint(o.center));
+ const center=box.getCenter(new THREE.Vector3());
+
+ meshes.forEach((m,i)=>{
+   const o=originals[i];
+   const dir=o.center.clone().sub(center);
+   if(dir.lengthSq()<1e-10)dir.set(0,1,0);
+   dir.normalize();
+   m.position.copy(o.position).add(dir.multiplyScalar(modelSize*.9*t));
+   m.quaternion.copy(o.quaternion);
+   m.scale.copy(o.scale);
+ });
+}
+
+// Select a mesh directly from the 3D model.
+function pickFromModel(event){
+ const rect=renderer.domElement.getBoundingClientRect();
+ mouse.x=((event.clientX-rect.left)/rect.width)*2-1;
+ mouse.y=-((event.clientY-rect.top)/rect.height)*2+1;
+ raycaster.setFromCamera(mouse,camera);
+
+ // Only test actual assembly meshes, not the generated edge lines.
+ const hits=raycaster.intersectObjects(meshes,false);
+ if(!hits.length)return;
+
+ const hit=hits[0].object;
+ const index=meshes.indexOf(hit);
+ if(index!==-1)selectComponent(index,true);
+}
+
+renderer.domElement.addEventListener("click",pickFromModel);
+
+function load(){
+ const dracoLoader=new DRACOLoader();
+ dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+ const gltfLoader=new GLTFLoader();
+ gltfLoader.setDRACOLoader(dracoLoader);
+ gltfLoader.load("3D_TEST_MODEL_FOR_WEB.glb",g=>{
+   root=g.scene;
+   scene.add(root);
+   build();
+
+   const b=getBox(root),s=b.getSize(new THREE.Vector3());
+   modelSize=Math.max(...s.toArray())||1;
+
+   frameWhole();
+   explode(0);
+
+   $("status").innerHTML="<b>Loaded.</b><br>"+meshes.length+" mesh components.<br>Click a list item or a component in the 3D model.";
+ },undefined,e=>{
+   console.error(e);
+   $("status").innerHTML="<b>Load failed.</b><br>"+(e.message||e);
+ });
+}
+
+$("slider").oninput=e=>explode(+e.target.value);
+
+$("reset").onclick=()=>{
+ // Explicitly restore EVERY component and remove selection.
+ $("slider").value=0;
+ explode(0);
+ clearSelection();
+ frameWhole();
+};
+
+$("play").onclick=()=>playing=!playing;
+
+$("edges").onclick=()=>{
+ edges=!edges;
+ meshes.forEach(m=>{
+   if(m.userData.viewerEdge)m.userData.viewerEdge.visible=edges;
+ });
+};
+
+addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+
+let last=performance.now();
+function loop(now){
+ requestAnimationFrame(loop);
+ const dt=(now-last)/1000;last=now;
+
+ if(playing){
+   let v=+$("slider").value+dt*30;
+   if(v>=100){v=100;playing=false}
+   $("slider").value=v;
+   explode(v);
+ }
+
+ controls.update();
+ renderer.render(scene,camera);
+}
+
+load();
+loop(performance.now());
+</script>
+</body>
+</html>
