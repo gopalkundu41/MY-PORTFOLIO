@@ -73,6 +73,19 @@ $("viewer").appendChild(renderer.domElement);
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;
 controls.dampingFactor=.08;
+controls.autoRotate=true;
+controls.autoRotateSpeed=1.6;
+
+let resumeAutoRotateTimer=null;
+controls.addEventListener("start",()=>{
+ controls.autoRotate=false;
+ if(resumeAutoRotateTimer)clearTimeout(resumeAutoRotateTimer);
+});
+controls.addEventListener("end",()=>{
+ resumeAutoRotateTimer=setTimeout(()=>{
+   if(selectedIndex===-1 && +$("slider").value===0) controls.autoRotate=true;
+ },2500);
+});
 
 scene.add(new THREE.HemisphereLight(0xffffff,0x888888,2.2));
 let key=new THREE.DirectionalLight(0xffffff,1.4);key.position.set(4,6,8);scene.add(key);
@@ -108,7 +121,7 @@ function frameObject(obj,padding=3){
 function frameWhole(){
  const box=getBox(root),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
  const radius=Math.max(...size.toArray())*.5||1;
- const distance=radius/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*1.8;
+ const distance=radius/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*1.25;
  controls.target.copy(center);
  camera.position.set(center.x+distance*.8,center.y+distance*.65,center.z+distance);
  camera.near=Math.max(radius/100000,.00001);
@@ -186,6 +199,7 @@ function selectComponent(index,zoom=true){
  updateList(index);
  setIsolation(index);
  const m=meshes[index];
+ controls.autoRotate=false;
 
  showStatus("<b>Selected:</b> "+(m.name||"Component")+"<br>Other components are transparent.");
  if(zoom)frameObject(m,3.0);
@@ -205,6 +219,7 @@ function clearSelection(){
  selectedIndex=-1;
  restoreAllMaterials();
  hideStatus();
+ if(+$("slider").value===0) controls.autoRotate=true;
 }
 
 function explode(v){
@@ -224,6 +239,12 @@ function explode(v){
    m.quaternion.copy(o.quaternion);
    m.scale.copy(o.scale);
  });
+
+ if(v>0){
+   controls.autoRotate=false;
+ }else if(selectedIndex===-1){
+   controls.autoRotate=true;
+ }
 }
 
 // Select a mesh directly from the 3D model.
