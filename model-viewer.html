@@ -27,6 +27,17 @@
 #status{position:fixed;right:14px;top:14px;max-width:260px;background:#15191ddd;border:1px solid #343a42;border-radius:7px;padding:8px 10px;font-size:11px;color:#a3abb5;line-height:1.45;display:none}
 #status.show{display:block}
 #viewer.selecting{cursor:crosshair}
+
+@media (max-width:600px){
+  #toolbar{gap:5px;padding:5px 6px;border-radius:10px;bottom:10px;max-width:94vw}
+  #toolbar button{padding:6px 9px;font-size:10.5px;gap:4px;border-radius:6px}
+  #toolbar .divider{height:20px;margin:0 1px}
+  #toolbar .slider-wrap{gap:5px;padding:0 3px}
+  #toolbar input[type=range]{width:64px}
+  #toolbar #pct{font-size:9.5px;min-width:26px}
+  #hint{font-size:9.5px;padding:5px 7px;left:8px;top:8px;max-width:60vw}
+  #status{font-size:9.5px;padding:6px 8px;right:8px;top:8px;max-width:44vw}
+}
 </style>
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.179.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.179.1/examples/jsm/"}}
@@ -54,6 +65,7 @@ import * as THREE from "three";
 import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {DRACOLoader} from "three/addons/loaders/DRACOLoader.js";
+import {RoomEnvironment} from "three/addons/environments/RoomEnvironment.js";
 
 const $=x=>document.getElementById(x);
 const scene=new THREE.Scene();
@@ -66,9 +78,14 @@ const renderer=new THREE.WebGLRenderer({antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 renderer.outputColorSpace=THREE.SRGBColorSpace;
-renderer.toneMapping=THREE.NoToneMapping;
-renderer.toneMappingExposure=1;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.15;
 $("viewer").appendChild(renderer.domElement);
+
+// Soft image-based lighting so metal/plastic parts pick up realistic
+// ambient reflections instead of looking flat.
+const pmremGenerator=new THREE.PMREMGenerator(renderer);
+scene.environment=pmremGenerator.fromScene(new RoomEnvironment(),0.045).texture;
 
 const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;
@@ -87,10 +104,10 @@ controls.addEventListener("end",()=>{
  },2500);
 });
 
-scene.add(new THREE.HemisphereLight(0xffffff,0x888888,2.2));
-let key=new THREE.DirectionalLight(0xffffff,1.4);key.position.set(4,6,8);scene.add(key);
-let fill=new THREE.DirectionalLight(0xffffff,1.0);fill.position.set(-4,3,5);scene.add(fill);
-let rim=new THREE.DirectionalLight(0xffffff,.6);rim.position.set(0,4,-6);scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xfff6e8,0x9099a3,0.8));
+let key=new THREE.DirectionalLight(0xfff4e0,1.6);key.position.set(4,6,8);scene.add(key);
+let fill=new THREE.DirectionalLight(0xdbe8ff,0.55);fill.position.set(-4,3,5);scene.add(fill);
+let rim=new THREE.DirectionalLight(0xffffff,.5);rim.position.set(0,4,-6);scene.add(rim);
 
 const raycaster=new THREE.Raycaster();
 const mouse=new THREE.Vector2();
@@ -121,9 +138,19 @@ function frameObject(obj,padding=3){
 function frameWhole(){
  const box=getBox(root),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
  const radius=Math.max(...size.toArray())*.5||1;
- const distance=radius/Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*1.25;
+
+ // Fit both vertically and horizontally, not just vertical FOV, so the
+ // model fills the viewport on wide *and* narrow (mobile) aspect ratios.
+ const vFov=THREE.MathUtils.degToRad(camera.fov*.5);
+ const hFov=Math.atan(Math.tan(vFov)*camera.aspect);
+ const distV=radius/Math.tan(vFov);
+ const distH=radius/Math.tan(hFov);
+ const padding=1.08; // small margin so the model isn't touching the edges
+ const distance=Math.max(distV,distH)*padding;
+
  controls.target.copy(center);
- camera.position.set(center.x+distance*.8,center.y+distance*.65,center.z+distance);
+ const dir=new THREE.Vector3(.8,.65,1).normalize();
+ camera.position.copy(center).add(dir.multiplyScalar(distance));
  camera.near=Math.max(radius/100000,.00001);
  camera.far=Math.max(distance*20,100);
  camera.updateProjectionMatrix();
